@@ -17,4 +17,4 @@
 # @AnLingzhi, https://github.com/AnLingzhi/Script
 
 [Script]
-feituSign = type=cron,cronexp=0 0 * * *,script-path=https://github.com/AnLingzhi/Surge/raw/main/feituSign.js
+feituSign = type=cron,cronexp=0 0 * * *,script-path=https://github.com/AnLingzhi/Surge/raw/main/feituSign.js,argument=usermail={{{usermail}}}&password={{{password}}}
