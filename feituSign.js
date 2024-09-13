@@ -115,18 +115,13 @@ function unicodeToChar(text) {
     return text.replace(/\\u[\dA-F]{4}/gi, 
            (match) => String.fromCharCode(parseInt(match.replace(/\\u/g, ''), 16)));
 }
-let username = "x@live.com"
+let usermail = "x@live.com"
 let password = "a"
 if (typeof $argument != "undefined") {
     let arg = Object.fromEntries($argument.split("&").map((item) => item.split("=")));
     console.log(JSON.stringify(arg));
-    //GeoCountryCode = arg.GeoCountryCode;
-    //EnableAlberta = arg.EnableAlberta;
-    //GEOAddressCorrectionEnabled = arg.GEOAddressCorrectionEnabled;
-    //ShouldEnableLagunaBeach = arg.ShouldEnableLagunaBeach;
-    //PedestrianAREnabled = arg.PedestrianAREnabled;
-    username = arg.username
+    usermail = arg.usermail
     password = arg.password
 };
 
-login(username, password);
+login(usermail, password);
