@@ -1,0 +1,20 @@
+#!name= SignIn: feitu
+#!desc=飞兔云机场签到
+#!author=AnLingzhi
+#!homepage=https://github.com/AnLingzhi
+#!category=签到
+#!arguments=usermail:x@live.com,password:a
+#!arguments-desc=username: 用户邮箱\npassword: 密码
+
+
+# Feature
+# 1. 签到领流量
+
+# Note
+# 需要开启 MITM over HTTP/2
+
+# Credit
+# @AnLingzhi, https://github.com/AnLingzhi/ScriptPrivate
+
+[Script]
+feituSign = type=cron,cronexp=0 0 * * *,script-path=feituSign.js
