@@ -1,0 +1,8 @@
+#!name=过滤工作总结
+#!desc=过滤OA待办中的工作总结条目
+
+[Script]
+过滤工作总结 = type=http-response,pattern=^http:\/\/bhoa\.bohui\.cn\/seeyon\/ajax\.do\?method=ajaxAction&managerName=sectionManager&managerMethod=doProjection,requires-body=1,max-size=0,script-path=https://raw.githubusercontent.com/AnLingzhi/Surge/main/filter_work_summary.js
+
+[MITM]
+hostname = %APPEND% bhoa.bohui.cn
