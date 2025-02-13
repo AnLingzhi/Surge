@@ -9,8 +9,14 @@ function processResponse() {
       const user = {
         uid: userInfo.basicinfo.uid,
         nickname: userInfo.basicinfo.nickname,
-        avatar: userInfo.basicinfo.avatar,
-        timestamp: new Date().getTime()
+        avatar: userInfo.basicinfo.avatarInfo.thumb.url,
+        timestamp: new Date().getTime(),
+        // BoxJS列表显示所需字段
+        key: userInfo.basicinfo.uid,
+        icon: userInfo.basicinfo.avatarInfo.thumb.url,
+        title: userInfo.basicinfo.nickname,
+        desc: `UID: ${userInfo.basicinfo.uid}`,
+        onClick: "deleteUser(this)"
       };
       
       // 获取现有用户列表

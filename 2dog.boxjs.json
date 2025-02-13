@@ -14,8 +14,24 @@
           "id": "2dog_users",
           "name": "用户列表",
           "val": "[]",
-          "type": "textarea",
-          "desc": "存储的用户信息列表"
+          "type": "cell",
+          "desc": "存储的用户信息列表",
+          "cell": {
+            "type": "list",
+            "props": {
+              "allowDel": true,
+              "style": {
+                "padding": "8px 16px"
+              }
+            },
+            "items": []
+          }
+        }
+      ],
+      "scripts": [
+        {
+          "name": "删除用户",
+          "script": "const users = JSON.parse($persistentStore.read('2dog_users') || '[]'); const uid = $input.uid; const newUsers = users.filter(u => u.uid !== uid); $persistentStore.write(JSON.stringify(newUsers), '2dog_users'); $done();"
         }
       ],
       "author": "@AnLingzhi",
