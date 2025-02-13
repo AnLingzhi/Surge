@@ -1,0 +1,26 @@
+{
+  "id": "2dog.app.sub",
+  "name": "二狗签到应用",
+  "author": "@AnLingzhi",
+  "icon": "https://raw.githubusercontent.com/AnLingzhi/Surge/main/2dog.png",
+  "repo": "https://github.com/AnLingzhi/Surge",
+  "apps": [
+    {
+      "id": "2dog",
+      "name": "二狗签到",
+      "keys": ["chavy_tokenurl_2dog", "chavy_tokenheader_2dog", "chavy_signurl_2dog", "chavy_signheader_2dog", "2dog_users"],
+      "settings": [
+        {
+          "id": "2dog_users",
+          "name": "用户列表",
+          "val": "[]",
+          "type": "textarea",
+          "desc": "存储的用户信息列表"
+        }
+      ],
+      "author": "@AnLingzhi",
+      "repo": "https://github.com/AnLingzhi/Surge",
+      "icons": ["https://raw.githubusercontent.com/AnLingzhi/Surge/main/2dog.png"]
+    }
+  ]
+} 
