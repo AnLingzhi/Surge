@@ -11,19 +11,19 @@ function processResponse() {
         userId: userInfo.userId,
         gender: userInfo.basicinfo.gender,
         nickname: userInfo.basicinfo.nickname,
-        // avatarInfo: {
-        //   origin: {
-        //     url: userInfo.basicinfo.avatarInfo.origin.url,
-        //   },
-        //   thumb: {
-        //     url: userInfo.basicinfo.avatarInfo.thumb.url,
-        //   }
-        // },
-        // tags: [
-        //   userInfo.basicinfo.birthYear,
-        //   userInfo.basicinfo.height,
-        //   userInfo.basicinfo.weight,
-        // ],
+        avatarInfo: {
+          origin: {
+            url: userInfo.basicinfo.avatarInfo.origin.url,
+          },
+          thumb: {
+            url: userInfo.basicinfo.avatarInfo.thumb.url,
+          }
+        },
+        tags: [
+          userInfo.basicinfo.birthYear,
+          userInfo.basicinfo.height,
+          userInfo.basicinfo.weight,
+        ],
         heartbeatStatus: userInfo.heartbeatStatus,
         visitedTime: new Date().getTime(),
       };
