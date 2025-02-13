@@ -9,14 +9,8 @@ function processResponse() {
       const user = {
         uid: userInfo.basicinfo.uid,
         nickname: userInfo.basicinfo.nickname,
-        avatar: userInfo.basicinfo.avatarInfo.thumb.url,
-        timestamp: new Date().getTime(),
-        // BoxJS列表显示所需字段
-        key: userInfo.basicinfo.uid,
-        icon: userInfo.basicinfo.avatarInfo.thumb.url,
-        title: userInfo.basicinfo.nickname,
-        desc: `UID: ${userInfo.basicinfo.uid}`,
-        onClick: "deleteUser(this)"
+        avatar: userInfo.basicinfo.avatar,
+        timestamp: new Date().getTime()
       };
       
       // 获取现有用户列表
@@ -49,6 +43,11 @@ function processResponse() {
   return $response.body;
 }
 
+function handleClearUserList() {
+  chavy.setdata(KEY_USERS, '[]');
+  chavy.msg("清空用户列表", "成功", "用户列表已清空。");
+}
+
 function init() {
   isSurge = () => {
     return undefined === this.$httpClient ? false : true;
@@ -72,6 +71,11 @@ function init() {
   done = (value = {}) => {
     $done(value);
   };
+  // 检查是否点击了 "清空用户列表" 按钮
+  if (getdata('clear_user_list') === '清空') {
+    setdata('','clear_user_list'); // 重置按钮状态，防止重复触发
+    handleClearUserList();
+  }
   return { isSurge, isQuanX, msg, log, getdata, setdata, done };
 }
 
