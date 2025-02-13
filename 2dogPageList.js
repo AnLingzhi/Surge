@@ -9,10 +9,8 @@ function processResponse() {
 
         if (pageListBody.success && pageListBody.data && pageListBody.data.records) {
             pageListBody.data.records = pageListBody.data.records.map(record => {
-                const matchedUser = userListFromBoxJS;
-                chavy.log(matchedUser);
+                const matchedUser = userListFromBoxJS.find(user => user.uid !== null);
                 if (matchedUser) {
-                    // 合并用户信息，这里只合并 birthYear, height, weight 作为示例，你可以根据需要添加更多字段
                     return {
                         ...record,
                         ...matchedUser,
