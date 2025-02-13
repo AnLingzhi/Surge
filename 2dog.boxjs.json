@@ -16,13 +16,6 @@
           "val": "[]",
           "type": "textarea",
           "desc": "存储的用户信息列表 (JSON 格式)。\n\n**删除用户说明:**\n- 使用 '清空用户列表' 按钮可以删除所有用户。"
-        },
-        {
-          "id": "clear_user_list",
-          "name": "清空用户列表",
-          "type": "button",
-          "desc": "点击清空所有已保存的用户信息。",
-          "val": "清空"
         }
       ],
       "author": "@AnLingzhi",
