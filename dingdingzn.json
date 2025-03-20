@@ -1,9 +1,26 @@
 {
-    "settings": {
-        "DingDingZN_Authorization": {
-            "name": "充电桩授权信息",
-            "type": "text",
-            "desc": "用于请求充电桩API的Authorization"
+  "id": "dingdingzn.auth",
+  "name": "DingDingZN 充电桩",
+  "author": "@AnLingzhi",
+  "icon": "https://raw.githubusercontent.com/AnLingzhi/Surge/main/dingdingzn.png",
+  "repo": "https://github.com/AnLingzhi/Surge",
+  "apps": [
+    {
+      "id": "dingdingzn",
+      "name": "DingDingZN 授权",
+      "keys": ["dingdingzn_authorization"],
+      "settings": [
+        {
+          "id": "dingdingzn_authorization",
+          "name": "Authorization",
+          "val": "",
+          "type": "text",
+          "desc": "充电桩 API 的 Authorization 信息"
         }
+      ],
+      "author": "@AnLingzhi",
+      "repo": "https://github.com/AnLingzhi/Surge",
+      "icons": ["https://raw.githubusercontent.com/AnLingzhi/Surge/main/dingdingzn.png"]
     }
+  ]
 }
