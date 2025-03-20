@@ -1,0 +1,118 @@
+// Scriptable - 更新版
+const params = args.widgetParameter ? args.widgetParameter.split(",") : [];
+const isDarkTheme = params?.[0] === 'dark';
+const padding = 2;
+
+const widget = new ListWidget();
+if (isDarkTheme) {
+  widget.backgroundColor = new Color('#1C1C1E');
+}
+widget.setPadding(padding, padding, padding, padding);
+
+const headerStack = widget.addStack();
+headerStack.setPadding(0, 0, 10, 0);
+const headerText = headerStack.addText("充电桩状态");
+headerText.font = Font.mediumSystemFont(16);
+if (isDarkTheme) {
+  headerText.textColor = new Color('#FFFFFF');
+}
+
+const equipmentCodes = ["32376061", "32376063"];
+const authorizationToken = await getAuthorizationToken();
+
+async function getAuthorizationToken() {
+    const url = "http://boxjs.com/query"; // 替换为 BoxJS 服务器地址
+    const request = new Request(url);
+    request.method = "POST";
+    request.body = JSON.stringify({
+        keys: ["DingDingZN_Authorization"]
+    });
+
+    const response = await request.loadJSON();
+    return response.settings.DingDingZN_Authorization || "";
+}
+
+async function getChargingStationStatus(equipmentCode) {
+    const url = `https://api.dingdingzn.com/uapp/ev/charging/order/equipment?equipmentCode=${equipmentCode}`;
+    const request = new Request(url);
+    request.method = "GET";
+    request.headers = {
+        "Authorization": authorizationToken,
+        "content-type": "application/json"
+    };
+
+    const response = await request.loadJSON();
+    if (response.code === 200 && response.msg === "success") {
+        return { equipmentCode, socketList: response.data.socketList };
+    } else {
+        throw new Error(`获取 ${equipmentCode} 失败: ${response.msg}`);
+    }
+}
+
+async function buildWidget() {
+    try {
+        const promises = equipmentCodes.map(code => getChargingStationStatus(code));
+        const results = await Promise.all(promises);
+
+        for (const result of results) {
+            const socketPromises = result.socketList.map(socket =>
+                checkSocketConnection(result.equipmentCode, socket.socketNumber)
+                    .then(isConnected => ({ ...socket, isConnected }))
+            );
+            const enrichedSockets = await Promise.all(socketPromises);
+            addEquipmentStatus(result.equipmentCode, enrichedSockets);
+        }
+
+        widget.refreshAfterDate = new Date(Date.now() + 60 * 60 * 1000);
+    } catch (error) {
+        const errorText = widget.addText("获取数据失败: " + error.message);
+        errorText.textColor = new Color('#FF0000');
+        widget.refreshAfterDate = new Date(Date.now() + 5 * 60 * 1000);
+    }
+}
+
+function addEquipmentStatus(equipmentCode, socketList) {
+    const equipmentText = widget.addText(`充电桩 ${equipmentCode}`);
+    equipmentText.font = Font.boldSystemFont(14);
+    if (isDarkTheme) {
+        equipmentText.textColor = new Color('#FFFFFF');
+    }
+    widget.addSpacer(5);
+
+    for (const socket of socketList) {
+        addSocketStatus(socket);
+    }
+    widget.addSpacer(10);
+}
+
+function addSocketStatus(socket) {
+    const rowStack = widget.addStack();
+    rowStack.setPadding(0, 0, 5, 0);
+    rowStack.layoutHorizontally();
+
+    const socketNumberText = rowStack.addText(`插座 ${socket.socketNumber}: `);
+    socketNumberText.font = Font.mediumSystemFont(14);
+    if (isDarkTheme) {
+        socketNumberText.textColor = new Color('#FFFFFF');
+    }
+
+    let status;
+    let color;
+    if (socket.socketStatusCode === "free") {
+        status = socket.isConnected ? "未充电 (占用)" : "未充电 (空闲)";
+        color = '#4AA956'; 
+    } else {
+        status = socket.isConnected ? "使用中 (占用)" : "使用中 (空闲)";
+        color = '#D22E2E'; 
+    }
+
+    const statusText = rowStack.addText(status);
+    statusText.font = Font.mediumSystemFont(14);
+    statusText.textColor = new Color(color);
+}
+
+// 运行脚本
+await buildWidget();
+Script.setWidget(widget);
+Script.complete();
+widget.presentSmall();
