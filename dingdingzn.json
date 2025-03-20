@@ -1,0 +1,9 @@
+{
+    "settings": {
+        "DingDingZN_Authorization": {
+            "name": "充电桩授权信息",
+            "type": "text",
+            "desc": "用于请求充电桩API的Authorization"
+        }
+    }
+}
