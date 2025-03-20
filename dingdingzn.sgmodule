@@ -3,7 +3,7 @@
 #!author=YourName
 
 [Script]
-http-response ^https:\/\/api\.dingdingzn\.com\/uapp\/ev\/charging\/order\/equipment requires-body=1,max-size=0,script-path=https://github.com/AnLingzhi/Surge/dingdingzn.js,tag=🔋 DingDingZN Authorization
+http-response ^https:\/\/api\.dingdingzn\.com\/uapp\/ev\/charging\/order\/equipment requires-body=1,max-size=0,script-path=https://raw.githubusercontent.com/AnLingzhi/Surge/refs/heads/main/dingdingzn.js,tag=🔋 DingDingZN Authorization
 
 [MITM]
 hostname = api.dingdingzn.com
