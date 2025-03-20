@@ -1,18 +1,9 @@
-// Surge 模块 - 捕获 Authorization
-/*
-[Script]
-http-response ^https:\/\/api\.dingdingzn\.com\/uapp\/ev\/charging\/order\/equipment requires-body=1,max-size=0,script-path=https://your-server.com/surge_auth.js
-
-[MITM]
-hostname = api.dingdingzn.com
-*/
-
 const chavy = init();
 
 if ($request && $request.headers) {
     const authHeader = $request.headers['Authorization'];
     if (authHeader) {
-        chavy.write(authHeader, 'DingDingZN_Authorization');
+        chavy.setdata(authHeader, 'dingdingzn_authorization');
         chavy.msg('🔋 授权信息已捕获', 'Authorization Token 已存储', '');
     }
 }
