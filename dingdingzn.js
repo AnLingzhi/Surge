@@ -1,5 +1,7 @@
 const chavy = init();
 
+console.log('充电🔋:', $request);
+
 if ($request && $request.headers) {
     const authHeader = $request.headers['Authorization'];
     if (authHeader) {
