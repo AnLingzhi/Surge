@@ -1,16 +1,16 @@
 /*
  * TSXY resource viewer for Surge iOS.
  *
- * The script never rewrites the API response. It observes list responses,
- * stores non-sensitive resource metadata, and validates a predictable public
- * media URL when the corresponding detail endpoint is opened. A successful
- * validation produces a tappable Surge notification.
+ * The script observes list responses and stores non-sensitive resource
+ * metadata. When a detail request is rejected only because the subscription
+ * is missing, it validates the predictable public media URL and returns the
+ * exact success fields consumed by the mini-program player.
  */
 
 (function () {
   "use strict";
 
-  var STORE_KEY = "tsxy_resource_catalog_v1";
+  var STORE_KEY = "tsxy_resource_catalog_v2";
   var FILE_ORIGIN = "https://file.tsxyapp.com";
   var MAX_RECORDS = 200;
   var requestUrl = ($request && $request.url) || "";
@@ -49,6 +49,11 @@
     return value.trim().slice(0, 100);
   }
 
+  function normalizeCourseCategory(value) {
+    var category = Number(value);
+    return Number.isFinite(category) ? category : 0;
+  }
+
   function loadCatalog() {
     var raw = $persistentStore.read(STORE_KEY);
     var parsed = raw ? parseJson(raw) : null;
@@ -85,7 +90,7 @@
     return titleMatch ? titleMatch[1].toLowerCase() : "";
   }
 
-  function recordForItem(item, kind) {
+  function recordForItem(item, kind, categoryFromRequest) {
     var id = String(item && item.id || "");
     if (!isSafeResourceId(id)) return null;
 
@@ -97,6 +102,10 @@
       kind: kind,
       extension: extension,
       title: normalizeTitle(item.title, id),
+      poster: typeof item.poster === "string" ? item.poster : "",
+      courseCategory: kind === "course"
+        ? normalizeCourseCategory(item.courseCategory === undefined ? categoryFromRequest : item.courseCategory)
+        : 0,
       url: FILE_ORIGIN + "/" + kind + "/" + id + "." + extension,
       seenAt: Date.now()
     };
@@ -112,22 +121,25 @@
     return "";
   }
 
-  function notifyAvailable(record, contentType) {
-    var label = contentType.toLowerCase().indexOf("audio/") === 0 ? "音频" : "视频";
-    $notification.post(
-      "TSXY " + label + "可用",
-      record.title,
-      "点击直接播放或下载",
-      {
-        action: "open-url",
-        url: record.url,
-        "auto-dismiss": false,
-        sound: true
-      }
-    );
+  function buildSuccessBody(payload, record) {
+    var rewritten = {};
+    Object.keys(payload).forEach(function (key) {
+      rewritten[key] = payload[key];
+    });
+    rewritten.hasError = false;
+    rewritten.msg = "";
+    rewritten.errorCode = 0;
+    rewritten.data = {
+      id: record.id,
+      title: record.title,
+      blob: record.url,
+      poster: record.poster || FILE_ORIGIN + "/" + record.kind + "/" + record.id + ".jpg",
+      courseCategory: normalizeCourseCategory(record.courseCategory)
+    };
+    return JSON.stringify(rewritten);
   }
 
-  function validateAndNotify(record) {
+  function validateAndRewrite(record, payload) {
     $httpClient.head(
       {
         url: record.url,
@@ -141,8 +153,8 @@
         var isMedia = /^(video|audio)\//i.test(contentType);
 
         if (!error && status >= 200 && status < 300 && isMedia) {
-          notifyAvailable(record, contentType);
-          console.log("[TSXY] media available: " + record.url);
+          console.log("[TSXY] rewrote detail response with media: " + record.url);
+          $done({ body: buildSuccessBody(payload, record) });
         } else {
           console.log(
             "[TSXY] media validation failed: " + record.url +
@@ -150,8 +162,8 @@
             " content-type=" + contentType +
             " error=" + String(error || "")
           );
+          $done({});
         }
-        $done({});
       }
     );
   }
@@ -170,10 +182,11 @@
   if (isList) {
     var catalog = loadCatalog();
     var kind = isCourse ? "course" : "live";
+    var categoryFromRequest = isCourse ? getQueryParameter(requestUrl, "category") : 0;
     var added = 0;
 
     listItems(payload).forEach(function (item) {
-      var record = recordForItem(item, kind);
+      var record = recordForItem(item, kind, categoryFromRequest);
       if (!record) return;
       catalog[record.id] = record;
       added += 1;
@@ -181,6 +194,11 @@
 
     if (added > 0) saveCatalog(catalog);
     console.log("[TSXY] cached " + String(added) + " resource(s) from " + path);
+    $done({});
+    return;
+  }
+
+  if (payload.hasError !== true || String(payload.msg || "").indexOf("未购买订阅") === -1) {
     $done({});
     return;
   }
@@ -203,6 +221,8 @@
       kind: "course",
       extension: "mp4",
       title: id,
+      poster: FILE_ORIGIN + "/course/" + id + ".jpg",
+      courseCategory: 0,
       url: FILE_ORIGIN + "/course/" + id + ".mp4",
       seenAt: Date.now()
     };
@@ -214,5 +234,5 @@
     return;
   }
 
-  validateAndNotify(candidate);
+  validateAndRewrite(candidate, payload);
 })();
