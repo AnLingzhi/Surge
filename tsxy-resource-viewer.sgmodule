@@ -1,0 +1,12 @@
+#!name=TSXY 资源查看器
+#!desc=从课程与直播列表提取公开媒体地址；点击受限详情时，经 HEAD 校验后发送可直接播放的 Surge 通知。
+#!system=ios
+#!author=AnLingzhi
+#!homepage=https://github.com/AnLingzhi/Surge
+#!category=工具
+
+[Script]
+TSXY 资源查看器 = type=http-response, pattern=^https:\/\/api\.tsxyapp\.com\/api\/(?:course(?:\/list(?:\/latest)?)?|livefile(?:\/latest|\/month\/items)?)\?, requires-body=true, max-size=1048576, timeout=10, script-path=https://raw.githubusercontent.com/AnLingzhi/Surge/refs/heads/main/tsxy-resource-viewer.js
+
+[MITM]
+hostname = %APPEND% api.tsxyapp.com
