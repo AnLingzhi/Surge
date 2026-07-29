@@ -394,11 +394,11 @@
     };
   }
 
-  if (!candidate) {
-    console.log("[TSXY] no cached type for live resource: " + id);
-    $done({});
-    return;
-  }
+  // if (!candidate) {
+  //   console.log("[TSXY] no cached type for live resource: " + id);
+  //   $done({});
+  //   return;
+  // }
 
   validateAndRewrite(candidate, payload);
 })();
