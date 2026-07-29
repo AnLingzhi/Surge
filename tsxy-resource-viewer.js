@@ -182,36 +182,41 @@
     return JSON.stringify(rewritten);
   }
 
-  function validateAndRewrite(record, payload) {
-    $httpClient.head(
-      {
-        url: record.url,
-        timeout: 6,
-        "auto-cookie": false,
-        "auto-redirect": true
-      },
-      function (error, response) {
-        var status = response && Number(response.status);
-        var contentType = headerValue(response && response.headers, "content-type");
-        // var isMedia = /^(video|audio)\//i.test(contentType);
-        var isMedia = /^(video|audio)\//i.test(contentType) || 
-              /octet-stream/i.test(contentType) || 
-              status === 200; // 只要 HTTP 状态码为 200 即视为资源有效
+  // function validateAndRewrite(record, payload) {
+  //   $httpClient.head(
+  //     {
+  //       url: record.url,
+  //       timeout: 6,
+  //       "auto-cookie": false,
+  //       "auto-redirect": true
+  //     },
+  //     function (error, response) {
+  //       var status = response && Number(response.status);
+  //       var contentType = headerValue(response && response.headers, "content-type");
+  //       // var isMedia = /^(video|audio)\//i.test(contentType);
+  //       var isMedia = /^(video|audio)\//i.test(contentType) || 
+  //             /octet-stream/i.test(contentType) || 
+  //             status === 200; // 只要 HTTP 状态码为 200 即视为资源有效
 
-        if (!error && status >= 200 && status < 300 && isMedia) {
-          console.log("[TSXY] rewrote detail response with media: " + record.url);
-          $done({ body: buildMediaSuccessBody(payload, record) });
-        } else {
-          console.log(
-            "[TSXY] media validation failed: " + record.url +
-            " status=" + String(status || 0) +
-            " content-type=" + contentType +
-            " error=" + String(error || "")
-          );
-          $done({});
-        }
-      }
-    );
+  //       if (!error && status >= 200 && status < 300 && isMedia) {
+  //         console.log("[TSXY] rewrote detail response with media: " + record.url);
+  //         $done({ body: buildMediaSuccessBody(payload, record) });
+  //       } else {
+  //         console.log(
+  //           "[TSXY] media validation failed: " + record.url +
+  //           " status=" + String(status || 0) +
+  //           " content-type=" + contentType +
+  //           " error=" + String(error || "")
+  //         );
+  //         $done({});
+  //       }
+  //     }
+  //   );
+  // }
+  function validateAndRewrite(record, payload) {
+    // 直接改写并返回，跳过 HEAD 异步网络校验
+    console.log("[TSXY] rewrote detail response with media: " + record.url);
+    $done({ body: buildMediaSuccessBody(payload, record) });
   }
 
   function isSafeReportBlob(value) {
