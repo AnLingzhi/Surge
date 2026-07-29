@@ -353,11 +353,11 @@
   }
 
   var errorMessage = String(payload.msg || "");
-  // var isSubscriptionError = errorMessage.indexOf("未购买订阅") !== -1 || errorMessage.indexOf("无权查看研报") !== -1;
-  // if (payload.hasError !== true || !isSubscriptionError) {
-  //   $done({});
-  //   return;
-  // }
+  var isSubscriptionError = errorMessage.indexOf("未购买订阅") !== -1 || errorMessage.indexOf("无权查看研报") !== -1;
+  if (payload.hasError !== true || !isSubscriptionError) {
+    $done({});
+    return;
+  }
 
   var id = getQueryParameter(requestUrl, "id");
   if (!isSafeResourceId(id)) {
@@ -394,11 +394,11 @@
     };
   }
 
-  // if (!candidate) {
-  //   console.log("[TSXY] no cached type for live resource: " + id);
-  //   $done({});
-  //   return;
-  // }
+  if (!candidate) {
+    console.log("[TSXY] no cached type for live resource: " + id);
+    $done({});
+    return;
+  }
 
   validateAndRewrite(candidate, payload);
 })();
