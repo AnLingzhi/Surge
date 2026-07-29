@@ -6,7 +6,7 @@
 #!category=工具
 
 [Script]
-TSXY 资源查看器 = type=http-response, pattern=^https:\/\/api\.tsxyapp\.com\/api\/(?:course(?:\/list(?:\/latest)?)?|livefile(?:\/latest|\/month\/items)?|report(?:\/list|\/latest)?)\?, requires-body=true, max-size=1048576, timeout=15, script-path=https://raw.githubusercontent.com/AnLingzhi/Surge/refs/heads/main/tsxy-resource-viewer.js?v=3
+TSXY 资源查看器 = type=http-response, pattern=^https:\/\/api\.tsxyapp\.com\/api\/(?:course(?:\/list(?:\/latest)?)?|livefile(?:\/latest|\/month\/items)?|report(?:\/list|\/latest)?)\?, requires-body=true, max-size=1048576, timeout=15, script-path=https://raw.githubusercontent.com/AnLingzhi/Surge/refs/heads/main/tsxy-resource-viewer.js?v=4,timeout=10
 
 [MITM]
 hostname = %APPEND% api.tsxyapp.com
