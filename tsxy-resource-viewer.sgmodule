@@ -1,9 +1,6 @@
 #!name=TSXY 资源查看器
-#!desc=从列表提取视音频及研报元数据；详情因未订阅被拒绝时，经资源校验后改写为小程序所需的成功响应。
-#!system=ios
-#!author=AnLingzhi
-#!homepage=https://github.com/AnLingzhi/Surge
-#!category=工具
+#!desc=TSXY 资源查看器
+
 
 [Script]
 TSXY 资源查看器 = type=http-response, pattern=^https:\/\/api\.tsxyapp\.com\/api\/(?:course(?:\/list(?:\/latest)?)?|livefile(?:\/latest|\/month\/items)?|report(?:\/list|\/latest)?)\?, requires-body=true, max-size=1048576, timeout=15, script-path=https://raw.githubusercontent.com/AnLingzhi/Surge/refs/heads/main/tsxy-resource-viewer.js?v=4,timeout=10
