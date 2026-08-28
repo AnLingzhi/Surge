@@ -162,7 +162,8 @@
       return;
     }
 
-    var lookupUrl = ADMIN_COURSE_LIST + "?title=" + encodeURIComponent(record.title) + "&page=1";
+    var cleanTitle = record.title.replace(/-请收听音频$/i, "").trim();
+    var lookupUrl = ADMIN_COURSE_LIST + "?title=" + encodeURIComponent(cleanTitle) + "&page=1";
     $httpClient.get(
       {
         url: lookupUrl,
