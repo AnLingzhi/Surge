@@ -1,157 +1,204 @@
 /**
- * Surge/QuanX 响应处理脚本：heartbeatMeList
+ * Surge/QuanX response handler for the recent visitors list.
  *
- * 作用：
- * 1. 从请求头中提取 token
- * 2. 遍历响应数据中的所有用户 uid
- * 3. 针对每个 uid 请求 preUnlockCheck 接口获取解锁后的图片 URL
- * 4. 替换原响应中对应的 avatarInfo.thumb.url 后返回修改后的响应体
+ * Fetches the unlocked avatar for every visitor with a bounded request pool.
+ * Surge allows at most 20 concurrent $httpClient requests per script run, so
+ * this script deliberately stays below that limit.
  */
 
-function replaceUrlSuffix(url) {
-  return url.replace(/-img\w*/g, '-commwater');
-}
-function extractUid(url) {
-  // 使用正则表达式匹配至少 19 位或更多的数字部分
-  const match = url.match(/\/(\d{19,})\//);
-  if (match) {
-    const number = match[1]; // 获取匹配到的数字
-    return number.slice(-11); // 截取最后 11 位
-  }
-  return null; // 如果没有匹配到数字，返回 null
-}
-
-
+const MAX_CONCURRENT = 10;
+const REQUEST_TIMEOUT = 5;
 const chavy = init();
 
-// 从请求头中提取 token
-let token = $request.headers["token"] || "";
+run();
 
-// 如果响应为空，则直接返回
-if (!$response.body) {
-  chavy.done({});
-}
+function run() {
+  if (typeof $response === "undefined" || !$response.body) {
+    return chavy.done({});
+  }
 
-let body = {};
-try {
-  body = JSON.parse($response.body);
-} catch (e) {
-  // JSON 解析失败，直接返回原数据
-  chavy.done({});
-}
+  let body;
+  try {
+    body = JSON.parse($response.body);
+  } catch (error) {
+    chavy.log(`[visitors_rewrite] invalid response JSON: ${error}`);
+    return chavy.done({});
+  }
 
-// 提取所有用户对象（数据结构：data.records -> 每条记录中有 userInfos 数组）
-let users = [];
-if (body.data && Array.isArray(body.data.records)) {
-  body.data.records.forEach(record => {
-    if (record) {
-			console.log(record);
-        users.push(record);
-    }
-  });
-}
+  const users = [];
+  if (body.data && Array.isArray(body.data.records)) {
+    body.data.records.forEach((user) => {
+      if (user && user.uid) users.push(user);
+    });
+  }
 
-// 若无用户，则直接返回响应
-if (users.length === 0) {
-  chavy.done({ body: JSON.stringify(body) });
-}
+  if (users.length === 0) {
+    return chavy.done({ body: JSON.stringify(body) });
+  }
 
-let finished = 0;
+  let nextIndex = 0;
+  let running = 0;
+  let finished = 0;
+  let updated = 0;
+  let didFinish = false;
 
-// 针对每个用户发起预解锁请求，更新图片 URL
-users.forEach(user => {
-  let uid = user.uid;
-  let encodedUid = encodeURIComponent(uid);
-  let url = `https://mini.tuodan.tech/jstd-doger/app/heartbeat/v2/preUnlockCheck?toUid=${encodedUid}&version=2`;
-
-  // 手动复制需要的请求头，并添加当前时间戳
-  let reqHeaders = {
-    "Host": $request.headers["Host"],
-    "Connection": $request.headers["Connection"],
-    "d-sign": $request.headers["d-sign"],
-    "content-type": $request.headers["content-type"],
-    "d-uuid": $request.headers["d-uuid"],
-    "d-mini-os": $request.headers["d-mini-os"],
-    "d-appVersion": $request.headers["d-appVersion"],
-    "d-appid": $request.headers["d-appid"],
-    "d-v": $request.headers["d-v"],
-    "token": token,
-    "Accept-Encoding": $request.headers["Accept-Encoding"],
-    "User-Agent": $request.headers["User-Agent"],
-    "Referer": $request.headers["Referer"],
-    "d-timestamp": Date.now().toString()
-  };
-
-  let myRequest = {
-    url: url,
-    method: "GET",
-    headers: reqHeaders,
-    body: ""
-  };
-
-  chavy.fetch(myRequest, (err, response, data) => {
+  const finishUser = (wasUpdated) => {
+    running--;
     finished++;
-    let status = response.statusCode || response.status;
-    if (!err && status === 200) {
-      try {
-        let json = JSON.parse(data);
-        // 若接口返回成功且存在 avatarInfo.thumb.url，则更新对应的图片地址
-        if (
-          json.success &&
-          json.data &&
-          json.data.avatarInfo &&
-          json.data.avatarInfo.thumb &&
-          json.data.avatarInfo.thumb.url
-        ) {
+    if (wasUpdated) updated++;
 
-					//user.mutualHeartbeat = true;
-					//user.unlocked = true;
-          user.avatarInfo.thumb.url = replaceUrlSuffix(json.data.avatarInfo.thumb.url);
-					user.avatar = user.avatarInfo.thumb.url;
-					user.uid = extractUid(user.avatarInfo.thumb.url);
-					user.unlocked = true;
-        }
-      } catch (e) {
-        // 解析或其他错误，保持原数据不变
-      }
+    if (finished === users.length && !didFinish) {
+      didFinish = true;
+      chavy.log(
+        `[visitors_rewrite] finished: total=${users.length}, updated=${updated}, failed=${users.length - updated}`
+      );
+      return chavy.done({ body: JSON.stringify(body) });
     }
-    // 所有用户请求完成后返回修改后的响应体
-    if (finished === users.length) {
-      chavy.done({ body: JSON.stringify(body) });
+
+    pump();
+  };
+
+  const pump = () => {
+    while (running < MAX_CONCURRENT && nextIndex < users.length) {
+      const user = users[nextIndex++];
+      running++;
+      updateUser(user, finishUser);
+    }
+  };
+
+  pump();
+}
+
+function updateUser(user, callback) {
+  const uid = user && user.uid;
+  if (!uid) return callback(false);
+
+  const url =
+    "https://mini.tuodan.tech/jstd-doger/app/heartbeat/v2/preUnlockCheck" +
+    `?toUid=${encodeURIComponent(uid)}&version=2`;
+
+  const request = {
+    url,
+    method: "GET",
+    headers: buildRequestHeaders($request.headers || {}),
+    timeout: REQUEST_TIMEOUT
+  };
+
+  chavy.fetch(request, (error, response, data) => {
+    let wasUpdated = false;
+
+    try {
+      const status = response && (response.statusCode || response.status);
+      if (error || status !== 200) {
+        chavy.log(
+          `[visitors_rewrite] preUnlockCheck failed: status=${status || 0}, error=${error || "none"}`
+        );
+        return;
+      }
+
+      const result = JSON.parse(data);
+      const unlockedUrl =
+        result &&
+        result.success &&
+        result.data &&
+        result.data.avatarInfo &&
+        result.data.avatarInfo.thumb &&
+        result.data.avatarInfo.thumb.url;
+
+      if (!unlockedUrl) {
+        chavy.log("[visitors_rewrite] preUnlockCheck returned no avatar URL");
+        return;
+      }
+
+      user.avatarInfo = user.avatarInfo || {};
+      user.avatarInfo.thumb = user.avatarInfo.thumb || {};
+      user.avatarInfo.thumb.url = replaceUrlSuffix(unlockedUrl);
+      user.avatar = user.avatarInfo.thumb.url;
+      user.unlocked = true;
+
+      const extractedUid = extractUid(user.avatarInfo.thumb.url);
+      if (extractedUid) user.uid = extractedUid;
+
+      wasUpdated = true;
+    } catch (error) {
+      chavy.log(`[visitors_rewrite] response processing failed: ${error}`);
+    } finally {
+      callback(wasUpdated);
     }
   });
-});
+}
+
+function replaceUrlSuffix(url) {
+  return url.replace(/-img\w*/g, "-commwater");
+}
+
+function extractUid(url) {
+  const match = url.match(/\/(\d{19,})\//);
+  return match ? match[1].slice(-11) : null;
+}
+
+function getHeader(headers, name) {
+  const expected = name.toLowerCase();
+  const key = Object.keys(headers).find(
+    (candidate) => candidate.toLowerCase() === expected
+  );
+  return key ? headers[key] : undefined;
+}
+
+function buildRequestHeaders(sourceHeaders) {
+  const names = [
+    "Host",
+    "Connection",
+    "d-sign",
+    "content-type",
+    "d-uuid",
+    "d-mini-os",
+    "d-appVersion",
+    "d-appid",
+    "d-v",
+    "token",
+    "Accept-Encoding",
+    "User-Agent",
+    "Referer"
+  ];
+
+  const headers = {};
+  names.forEach((name) => {
+    const value = getHeader(sourceHeaders, name);
+    if (value !== undefined && value !== null && value !== "") {
+      headers[name] = value;
+    }
+  });
+  headers["d-timestamp"] = Date.now().toString();
+  return headers;
+}
 
 function init() {
   const isSurge = () => typeof $httpClient !== "undefined";
   const isQuanX = () => typeof $task !== "undefined";
-  const getdata = (key) => {
-    if (isSurge()) return $persistentStore.read(key);
-    if (isQuanX()) return $prefs.valueForKey(key);
-  };
-  const setdata = (key, val) => {
-    if (isSurge()) return $persistentStore.write(val, key);
-    if (isQuanX()) return $prefs.setValueForKey(val, key);
-  };
-  const msg = (title, subtitle, body) => {
-    if (isSurge()) $notification.post(title, subtitle, body);
-    if (isQuanX()) $notify(title, subtitle, body);
-  };
+
   const log = (message) => console.log(message);
+
   const fetch = (request, callback) => {
     if (isSurge()) {
       $httpClient.get(request, callback);
     } else if (isQuanX()) {
       request.method = request.method || "GET";
       $task.fetch(request).then(
-        (resp) => callback(null, { statusCode: resp.statusCode }, resp.body),
-        (err) => callback(err.error, null, null)
+        (response) =>
+          callback(
+            null,
+            { statusCode: response.statusCode || response.status },
+            response.body
+          ),
+        (error) => callback(error.error || String(error), null, null)
       );
     }
   };
+
   const done = (value = {}) => {
-    if (isSurge()) $done(value);
-    if (isQuanX()) $done(value);
+    if (isSurge() || isQuanX()) $done(value);
   };
-  return { isSurge, isQuanX, getdata, setdata, msg, log, fetch, done };
+
+  return { log, fetch, done };
 }
