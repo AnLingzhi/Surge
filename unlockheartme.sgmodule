@@ -1,0 +1,37 @@
+#!name=unlockheartme
+#!desc=2dog 页面解锁与关系辅助脚本
+
+[General]
+force-http-engine-hosts = %APPEND% mini.tuodan.tech
+
+[Script]
+// hemaren
+hemaren_rewrite = type=http-response,pattern=^https:\/\/014-no4c-wxapi\.hema\.ren\/index\/settings.*,script-path=https://raw.githubusercontent.com/AnLingzhi/Surge/main/hemaren_rewrite.js,requires-body=true
+
+// 分享强制心动
+clientReport_shareReport = type=http-request,pattern=^https:\/\/mini\.tuodan\.tech\/jstd-doger\/app\/clientReport\/shareReport$,script-path=https://raw.githubusercontent.com/AnLingzhi/Surge/main/buildRelation.js,requires-body=true
+
+// 搜索页面解锁
+search_rewrite = type=http-response,pattern=^https:\/\/mini\.tuodan\.tech\/jstd-doger\/app\/search\/user.*,requires-body=1,max-size=0,script-path=https://raw.githubusercontent.com/AnLingzhi/Surge/main/search_rewrite.js
+
+// 返回搜索页面查询解锁状态
+unlockResult_rewrite = type=http-response,pattern=^https:\/\/mini\.tuodan\.tech\/jstd-doger\/app\/search\/unlockResult.*,requires-body=1,max-size=0,script-path=https://raw.githubusercontent.com/AnLingzhi/Surge/main/unlockResult_rewrite.js
+
+// 错过列表
+missMatch_rewrite = type=http-response,pattern=^https:\/\/mini\.tuodan\.tech\/jstd-doger\/app\/missMatch\/list.*,requires-body=1,max-size=0,script-path=https://raw.githubusercontent.com/AnLingzhi/Surge/main/missMatch_rewrite.js
+
+// 心动我列表。使用受控并发处理完整页面，因此允许更长的脚本运行时间。
+heartbeat_rewrite = type=http-response,pattern=^https:\/\/mini\.tuodan\.tech\/jstd-doger\/app\/heartbeat\/heartbeatMeList.*,requires-body=1,max-size=0,script-path=https://raw.githubusercontent.com/AnLingzhi/Surge/main/heartbeat_rewrite.js,timeout=20
+
+// 访客
+visitors_rewrite = type=http-response,pattern=^https:\/\/mini\.tuodan\.tech\/jstd-doger\/app\/user\/v3\/visitors.*,requires-body=1,max-size=0,script-path=https://raw.githubusercontent.com/AnLingzhi/Surge/main/visitors_rewrite.js
+
+// 强制好友（默认停用）
+// userinfo_rewrite = type=http-response,pattern=^https:\/\/mini\.tuodan\.tech\/jstd-doger\/app\/user\/v6\/info.*,requires-body=1,max-size=0,script-path=https://raw.githubusercontent.com/AnLingzhi/Surge/main/userinfo_rewrite.js
+
+// VIP 入口文案
+queryVipEnterInfo_rewrite = type=http-response,pattern=^https:\/\/mini\.tuodan\.tech\/jstd-doger\/app\/vip\/v2\/queryVipEnterInfo.*,requires-body=1,max-size=0,script-path=https://raw.githubusercontent.com/AnLingzhi/Surge/main/queryVipEnterInfo_rewrite.js
+
+[MITM]
+hostname = %APPEND% mini.tuodan.tech
+tcp-connection = true
