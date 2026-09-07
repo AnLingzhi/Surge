@@ -6,7 +6,7 @@
   var FILE_ORIGIN = "https://file.tsxyapp.com";
   var ADMIN_REPORT_LIST = "http://admin.tsxyapp.com/api/report/list";
   var ADMIN_COURSE_LIST = "http://admin.tsxyapp.com/api/course/list";
-  var WORKER_TOKEN_SYNC_URL = "https://tsxy-viewer.xai-kg.workers.dev/api/update-token-by-surge";
+  var WORKER_TOKEN_SYNC_URL = "https://tsxy.xai-kg.workers.dev/api/update-token-by-surge";
   var PERSIST_CATALOG_KEY = "tsxy_resource_catalog_v3";
   var PERSIST_AUDIO_MAP_KEY = "tsxy_audio_uuid_mapping_v3";
 
